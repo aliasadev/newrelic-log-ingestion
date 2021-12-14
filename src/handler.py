@@ -52,8 +52,11 @@ async def _make_request(log_batch, session):
                 "logtype": os.getenv("LOG_TYPE")
             },
         },
-        "logs": log_batch
+        **log_batch
     }
+
+    # print("I would upload to NR: \n {}\n".format(payload))
+
     compressed_payload = gzip.compress(json.dumps(payload).encode())
     req = request.Request("https://log-api.newrelic.com/log/v1", compressed_payload)
     req.add_header("X-License-Key", os.getenv("LICENSE_KEY", ""))
@@ -84,11 +87,8 @@ async def _process_log_file(log_url):
     request_batch = []
     async with aiohttp.ClientSession() as session:
         with open(log_url, encoding="utf-8") as log_lines:
-            for i, line in enumerate(log_lines):
-                log_batch.append({"message": line})
-                if asizeof.asizeof(log_batch) > MAX_BATCH_SIZE:
-                    request_batch.append(_make_request(log_batch, session))
-                    log_batch = []
+            log_batch = json.load(log_lines)
+            log_lines.close()
             request_batch.append(_make_request(log_batch, session))
             logger.info("Sending data to NR logs.....")
             res = await asyncio.gather(*request_batch)

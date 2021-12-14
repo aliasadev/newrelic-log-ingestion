@@ -54,32 +54,29 @@ async def _make_request(log_batch, session):
         },
         "logs": log_batch
     }
+    compressed_payload = gzip.compress(json.dumps(payload).encode())
+    req = request.Request("https://log-api.newrelic.com/log/v1", compressed_payload)
+    req.add_header("X-License-Key", os.getenv("LICENSE_KEY", ""))
+    req.add_header("X-Event-Source", "logs")
+    req.add_header("Content-Encoding", "gzip")
 
-    print("I would upload to NR: \n {}".format(payload))
-
-    # compressed_payload = gzip.compress(json.dumps(payload).encode())
-    # req = request.Request("https://log-api.eu.newrelic.com/log/v1", compressed_payload)
-    # req.add_header("X-License-Key", os.getenv("LICENSE_KEY", ""))
-    # req.add_header("X-Event-Source", "logs")
-    # req.add_header("Content-Encoding", "gzip")
-
-    # try:
-    #     resp = await session.post(req.get_full_url(), data=req.data, headers=req.headers)
-    #     resp.raise_for_status()
-    #     return resp.status, resp.url
-    # except aiohttp.ClientResponseError as e:
-    #     if e.status == 400:
-    #         raise Exception("{}, {}".format(e, "Unexpected payload"))
-    #     elif e.status == 403:
-    #         raise Exception("{}, {}".format(e, "Review your license key"))
-    #     elif e.status == 404:
-    #         raise Exception("{}, {}".format(e, "Review the region endpoint"))
-    #     elif e.status == 429:
-    #         logger.error(f"There was a {e.status} error. Reason: {e.message}")
-    #     elif e.status == 408:
-    #         logger.error(f"There was a {e.status} error. Reason: {e.message}")
-    #     elif 400 <= e.status < 500:
-    #         raise Exception(e)
+    try:
+        resp = await session.post(req.get_full_url(), data=req.data, headers=req.headers)
+        resp.raise_for_status()
+        return resp.status, resp.url
+    except aiohttp.ClientResponseError as e:
+        if e.status == 400:
+            raise Exception("{}, {}".format(e, "Unexpected payload"))
+        elif e.status == 403:
+            raise Exception("{}, {}".format(e, "Review your license key"))
+        elif e.status == 404:
+            raise Exception("{}, {}".format(e, "Review the region endpoint"))
+        elif e.status == 429:
+            logger.error(f"There was a {e.status} error. Reason: {e.message}")
+        elif e.status == 408:
+            logger.error(f"There was a {e.status} error. Reason: {e.message}")
+        elif 400 <= e.status < 500:
+            raise Exception(e)
 
 
 async def _process_log_file(log_url):
@@ -94,7 +91,7 @@ async def _process_log_file(log_url):
                     log_batch = []
             request_batch.append(_make_request(log_batch, session))
             logger.info("Sending data to NR logs.....")
-            asyncio.gather(*request_batch)
+            res = await asyncio.gather(*request_batch)
 
 
 def handler():

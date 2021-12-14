@@ -8,4 +8,4 @@ When a log file is uploaded to S3 bucket and a SQS event is triggered based on t
 
 `AWS_PROFILE` - AWS credentials
 
-`BRAND` - One of the AMV brands (AT, GP, AW) defaults to AMV
+`LOG_TYPE` - Type of the log (see [newrelic log api](https://docs.newrelic.com/docs/logs/log-api/introduction-log-api/#json-content))

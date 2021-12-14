@@ -92,9 +92,9 @@ async def _process_log_file(log_url, bucket):
     request_batch = []
     async with aiohttp.ClientSession() as session:
         with open(log_url, encoding="utf-8") as log_lines:
-            log_batch["logs"] = json.load(log_lines)
-            log_lines.close()
-            request_batch.append(_make_request(log_batch, session))
+            for i, line in enumerate(log_lines):
+                log_batch["logs"] = json.loads(line)
+                request_batch.append(_make_request(log_batch, session))
             print("Sending data to NR logs.....")
             res = await asyncio.gather(*request_batch)
 

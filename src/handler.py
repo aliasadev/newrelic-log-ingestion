@@ -47,13 +47,12 @@ def _get_file_url_from_s3(bucket, key):
 async def _make_request(log_batch, session):
     payload = {
         "common": {
-            "brand": os.getenv("BRAND", "AMV"),
             "attributes": {
                 "logtype": os.getenv("LOG_TYPE"),
-                "aws": {
-                    "s3_bucket_name": log_batch["bucket"]
-                },
             },
+        },
+        "aws": {
+            "s3_bucket_name": log_batch["bucket"]
         },
         **log_batch["logs"]
     }
@@ -96,7 +95,7 @@ async def _process_log_file(log_url, bucket):
             log_batch["logs"] = json.load(log_lines)
             log_lines.close()
             request_batch.append(_make_request(log_batch, session))
-            logger.info("Sending data to NR logs.....")
+            print("Sending data to NR logs.....")
             res = await asyncio.gather(*request_batch)
 
 

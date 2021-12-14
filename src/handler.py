@@ -49,16 +49,20 @@ async def _make_request(log_batch, session):
         "common": {
             "brand": os.getenv("BRAND", "AMV"),
             "attributes": {
-                "logtype": os.getenv("LOG_TYPE")
+                "logtype": os.getenv("LOG_TYPE"),
+                "aws": {
+                    "s3_bucket_name": log_batch["bucket"]
+                },
             },
         },
-        **log_batch
+        **log_batch["logs"]
     }
 
     # print("I would upload to NR: \n {}\n".format(payload))
 
     compressed_payload = gzip.compress(json.dumps(payload).encode())
-    req = request.Request("https://log-api.newrelic.com/log/v1", compressed_payload)
+    req = request.Request(
+        "https://log-api.newrelic.com/log/v1", compressed_payload)
     req.add_header("X-License-Key", os.getenv("LICENSE_KEY", ""))
     req.add_header("X-Event-Source", "logs")
     req.add_header("Content-Encoding", "gzip")
@@ -82,12 +86,14 @@ async def _make_request(log_batch, session):
             raise Exception(e)
 
 
-async def _process_log_file(log_url):
-    log_batch = []
+async def _process_log_file(log_url, bucket):
+    log_batch = {
+        "bucket": bucket
+    }
     request_batch = []
     async with aiohttp.ClientSession() as session:
         with open(log_url, encoding="utf-8") as log_lines:
-            log_batch = json.load(log_lines)
+            log_batch["logs"] = json.load(log_lines)
             log_lines.close()
             request_batch.append(_make_request(log_batch, session))
             logger.info("Sending data to NR logs.....")
@@ -107,7 +113,7 @@ def handler():
             log_file_url = _get_file_url_from_s3(bucket, key)
 
             # Read logfile and add the meta data
-            asyncio.run(_process_log_file(log_file_url))
+            asyncio.run(_process_log_file(log_file_url, bucket))
 
     return {'message': 'Uploaded logs to New Relic'}
 

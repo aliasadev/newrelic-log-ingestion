@@ -107,7 +107,7 @@ async def _process_log_file(log_url, bucket):
 
 def handler():
     for message in _get_sqs_messages():
-        print(f'Processing message {message["MessageId"]}')
+        logger.debug(f'Processing message {message["MessageId"]}')
         event = json.loads(message["Body"])
         # get the file from s3 bucket
         if ('Records' not in event):
@@ -121,15 +121,16 @@ def handler():
             # Read logfile and add the meta data
             asyncio.run(_process_log_file(log_file_url, bucket))
 
-            '''
-            If it gets here, it means that logs are transferred successfully
-            And we can delete the message from the queue
-            '''
-            sqs = boto3.client('sqs')
-            sqs.delete_message(
-                QueueUrl=message["MessageId"],
-                ReceiptHandle=message["ReceiptHandle"]
-            )
+        '''
+        If it gets here, it means that logs are transferred successfully
+        And we can delete the message from the queue
+        '''
+        logger.debug(f"Deleting message ({message['ReceiptHandle']}) from queue")
+        sqs = boto3.client('sqs')
+        sqs.delete_message(
+            QueueUrl=os.getenv("QUEUE_URL"),
+            ReceiptHandle=message["ReceiptHandle"]
+        )
 
     return {'message': 'Uploaded logs to New Relic'}
 

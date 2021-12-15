@@ -24,21 +24,27 @@ def _get_sqs_messages():
     """
     Get messages from AWS SQS queue
     """
-    sqs = boto3.resource('sqs')
-    queue = sqs.Queue(url=os.getenv("QUEUE_URL", ""))
-    return queue.receive_messages(MaxNumberOfMessages=10)
+    while True:
+        sqs = boto3.client('sqs')
+        print('Geting new messages....')
+        res = sqs.receive_message(
+            MaxNumberOfMessages=10,
+            QueueUrl=os.getenv("QUEUE_URL", "")
+        )
+        if 'Messages' in res:
+            yield from res['Messages']
 
 
 def _get_file_url_from_s3(bucket, key):
     """
-        Get data from S3 bucket.
+    Get data from S3 bucket.
     """
     log_file_size = boto3.resource('s3').Bucket(
         bucket).Object(key).content_length
     if log_file_size > MAX_FILE_SIZE:
-        logger.error(
-            "The log file uploaded to S3 is larger than the supported max size of 400MB")
-        return
+        msg = "The log file uploaded to S3 is larger than the supported max size of 400MB"
+        logger.error(msg)
+        raise Exception(msg)
 
     log_file_url = "s3://{}/{}".format(bucket, key)
     return log_file_url
@@ -101,7 +107,8 @@ async def _process_log_file(log_url, bucket):
 
 def handler():
     for message in _get_sqs_messages():
-        event = json.loads(message.body)
+        print(f'Processing message {message["MessageId"]}')
+        event = json.loads(message["Body"])
         # get the file from s3 bucket
         if ('Records' not in event):
             continue
@@ -113,6 +120,16 @@ def handler():
 
             # Read logfile and add the meta data
             asyncio.run(_process_log_file(log_file_url, bucket))
+
+            '''
+            If it gets here, it means that logs are transferred successfully
+            And we can delete the message from the queue
+            '''
+            sqs = boto3.client('sqs')
+            sqs.delete_message(
+                QueueUrl=message["MessageId"],
+                ReceiptHandle=message["ReceiptHandle"]
+            )
 
     return {'message': 'Uploaded logs to New Relic'}
 
